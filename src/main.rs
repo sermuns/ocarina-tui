@@ -7,7 +7,7 @@ use ratatui::{
     symbols::Marker,
     widgets::{
         Block, BorderType, Borders, Padding, Paragraph,
-        canvas::{self, Canvas, Circle},
+        canvas::{Canvas, Circle, Line as CLine, Shape},
     },
 };
 use rodio::{
@@ -15,7 +15,7 @@ use rodio::{
     mixer::{self},
     source::{Amplify, SineWave},
 };
-use std::sync::LazyLock;
+use std::{sync::LazyLock, time::Duration};
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -37,7 +37,10 @@ pub struct App {
     current_note: NoteButton,
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
+
     message: String,
+    /// when non-zero, counting down. clears `message` on completion.
+    message_clear_timeout: Duration,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -59,6 +62,19 @@ impl From<KeyCode> for NoteButton {
             KeyCode::Left | KeyCode::Char('h') => NoteButton::Left,
             KeyCode::Up | KeyCode::Char('k') => NoteButton::Up,
             _ => NoteButton::None,
+        }
+    }
+}
+
+impl From<NoteButton> for &str {
+    fn from(value: NoteButton) -> Self {
+        match value {
+            NoteButton::A => "a",
+            NoteButton::Down => "↓",
+            NoteButton::Right => "→",
+            NoteButton::Left => "←",
+            NoteButton::Up => "↑",
+            NoteButton::None => " ",
         }
     }
 }
@@ -90,6 +106,7 @@ impl App {
             sink,
             current_note: NoteButton::None,
             message: String::new(),
+            message_clear_timeout: Duration::ZERO,
             notes_buffer: [NoteButton::None; NUM_NOTES],
             note_idx: 0,
         })
@@ -137,7 +154,7 @@ impl App {
             Line::from(vec!["You played the ".into(), "Song of Time".blue()]).centered();
         frame.render_widget(message_text, message_area);
 
-        let canvas_area = canvas_outer_area.centered_horizontally(Constraint::Percentage(70));
+        let canvas_area = canvas_outer_area.centered_horizontally(Constraint::Max(100));
         let canvas = Canvas::default()
             .block(Block::bordered().padding(Padding::uniform(1)))
             // .marker(Marker::Dot)
@@ -150,19 +167,19 @@ impl App {
 
                 for i in 0..NUM_LINES {
                     let y = f64::from(line_spacing * i);
-                    ctx.draw(&canvas::Line::new(x1, y, x2, y, Color::LightRed));
+                    ctx.draw(&CLine::new(x1, y, x2, y, Color::LightRed));
                 }
 
                 let note_height = f64::from(canvas_area.height / (NUM_NOTES as u16 - 3));
-                for (i, note) in self.notes_buffer.iter().enumerate() {
+                for (i, note) in self.notes_buffer.into_iter().enumerate() {
                     if matches!(note, NoteButton::None) {
                         continue;
                     }
                     let x = f64::from(note_spacing * i as u16);
-                    let y = note_height * f64::from(*note as u8);
-                    const NOTE_CIRCLE_RADIUS: f64 = 2.;
-                    let note_circle = Circle::new(x, y, NOTE_CIRCLE_RADIUS, Color::Yellow);
-                    ctx.draw(&note_circle);
+                    let y = note_height * f64::from(note as u8);
+                    const NOTE_CIRCLE_RADIUS: f64 = 2.2;
+                    ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS, Color::Yellow));
+                    ctx.print::<&str>(x, y, (note).into());
                 }
             })
             .x_bounds([0., f64::from(canvas_area.width)])
