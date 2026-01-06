@@ -6,8 +6,8 @@ use ratatui::{
     prelude::*,
     symbols::Marker,
     widgets::{
-        Block, BorderType, Borders,
-        canvas::{self, Canvas},
+        Block, BorderType, Borders, Padding, Paragraph,
+        canvas::{self, Canvas, Circle},
     },
 };
 use rodio::{
@@ -28,14 +28,19 @@ fn main() -> Result<()> {
     ratatui::run(|terminal| app.run(terminal))
 }
 
+const NUM_NOTES: usize = 8;
+
 pub struct App {
     quitting: bool,
     stream_handle: OutputStream,
     sink: Sink,
-    note_pressed: NoteButton,
+    current_note: NoteButton,
+    notes_buffer: [NoteButton; NUM_NOTES],
+    note_idx: usize,
+    message: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum NoteButton {
     A,
     Down,
@@ -66,19 +71,13 @@ struct NoteSources {
     d_up: Amplify<SineWave>,
 }
 
-impl NoteSources {
-    fn new() -> Self {
-        NoteSources {
-            d_a: SineWave::new(293.66).amplify_normalized(0.5),
-            f_down: SineWave::new(349.23).amplify_normalized(0.5),
-            a_right: SineWave::new(440.00).amplify_normalized(0.5),
-            b_left: SineWave::new(493.88).amplify_normalized(0.5),
-            d_up: SineWave::new(587.33).amplify_normalized(0.5),
-        }
-    }
-}
-
-static NOTES: LazyLock<NoteSources> = LazyLock::new(NoteSources::new);
+static NOTES: LazyLock<NoteSources> = LazyLock::new(|| NoteSources {
+    d_a: SineWave::new(293.66).amplify_normalized(0.5),
+    f_down: SineWave::new(349.23).amplify_normalized(0.5),
+    a_right: SineWave::new(440.00).amplify_normalized(0.5),
+    b_left: SineWave::new(493.88).amplify_normalized(0.5),
+    d_up: SineWave::new(587.33).amplify_normalized(0.5),
+});
 
 impl App {
     fn new() -> Result<Self> {
@@ -89,7 +88,10 @@ impl App {
             quitting: false,
             stream_handle,
             sink,
-            note_pressed: NoteButton::None,
+            current_note: NoteButton::None,
+            message: String::new(),
+            notes_buffer: [NoteButton::None; NUM_NOTES],
+            note_idx: 0,
         })
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -104,7 +106,7 @@ impl App {
     fn render(&mut self, frame: &mut ratatui::Frame) {
         let [header, body, footer] = Layout::vertical([
             Constraint::Length(1),
-            Constraint::Min(1),
+            Constraint::Fill(1),
             Constraint::Length(1),
         ])
         .areas(frame.area());
@@ -119,26 +121,71 @@ impl App {
         frame.render_widget(
             title_block
                 .clone()
-                .title(format!(" {:?} ", self.note_pressed)),
+                .title(format!(" {:?} {:?} ", self.current_note, self.note_idx)),
             footer,
         );
         frame.render_widget(title_block.title(format!(" {} ", PKG_NAME)), header);
 
+        let [_, message_area, canvas_outer_area] = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Min(1),
+            Constraint::Length(20),
+        ])
+        .areas(body);
+
+        let message_text =
+            Line::from(vec!["You played the ".into(), "Song of Time".blue()]).centered();
+        frame.render_widget(message_text, message_area);
+
+        let canvas_area = canvas_outer_area.centered_horizontally(Constraint::Percentage(70));
         let canvas = Canvas::default()
-            .block(Block::bordered())
-            .marker(Marker::Dot)
+            .block(Block::bordered().padding(Padding::uniform(1)))
+            // .marker(Marker::Dot)
             .paint(|ctx| {
-                const LINE_SPACING: i16 = 3;
-                let x2 = f64::from(body.width);
-                let center = body.height / 2;
-                for i in -4..=-1 {
-                    let y = (center as i16 + LINE_SPACING * i).into();
-                    ctx.draw(&canvas::Line::new(0., y, x2, y, Color::Gray));
+                const NUM_LINES: u16 = 4;
+                let line_spacing = canvas_area.height / (NUM_LINES - 1);
+                let note_spacing = canvas_area.width / (NUM_NOTES as u16 - 1);
+                let x1 = 0.;
+                let x2 = f64::from(canvas_area.width);
+
+                for i in 0..NUM_LINES {
+                    let y = f64::from(line_spacing * i);
+                    ctx.draw(&canvas::Line::new(x1, y, x2, y, Color::LightRed));
+                }
+
+                let note_height = f64::from(canvas_area.height / (NUM_NOTES as u16 - 3));
+                for (i, note) in self.notes_buffer.iter().enumerate() {
+                    if matches!(note, NoteButton::None) {
+                        continue;
+                    }
+                    let x = f64::from(note_spacing * i as u16);
+                    let y = note_height * f64::from(*note as u8);
+                    const NOTE_CIRCLE_RADIUS: f64 = 2.;
+                    let note_circle = Circle::new(x, y, NOTE_CIRCLE_RADIUS, Color::Yellow);
+                    ctx.draw(&note_circle);
                 }
             })
-            .x_bounds([0., f64::from(body.width)])
-            .y_bounds([0., f64::from(body.height)]);
-        frame.render_widget(canvas, body);
+            .x_bounds([0., f64::from(canvas_area.width)])
+            .y_bounds([0., f64::from(canvas_area.height)]);
+        frame.render_widget(canvas, canvas_area);
+    }
+
+    fn do_note(&mut self, note: NoteButton) {
+        self.current_note = note;
+
+        if matches!(note, NoteButton::None) {
+            self.notes_buffer.fill(NoteButton::None);
+            self.note_idx = 0;
+            return;
+        }
+
+        self.notes_buffer[self.note_idx] = note;
+
+        if self.note_idx >= NUM_NOTES - 1 {
+            self.note_idx = 0;
+        } else {
+            self.note_idx += 1;
+        }
     }
 
     fn handle_events(&mut self) -> Result<()> {
@@ -159,9 +206,8 @@ impl App {
             self.quit();
         }
 
-        let (_controller, _mixer) = mixer::mixer(2, 44_100);
+        self.do_note(key_event.code.into());
 
-        self.note_pressed = key_event.code.into();
         Ok(())
     }
 
