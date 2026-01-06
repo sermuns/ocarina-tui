@@ -55,12 +55,17 @@ enum NoteButton {
 
 impl NoteButton {
     fn draw(self, ctx: &mut canvas::Context, x: f64, y: f64) {
-        const NOTE_CIRCLE_RADIUS: f64 = 2.0;
+        const NOTE_CIRCLE_RADIUS: f64 = 1.4;
 
-        for c in [1.0 /*, 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1*/] {
-            ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS * c, Color::Yellow));
+        let color = match self {
+            NoteButton::A => Color::Blue,
+            _ => Color::Yellow,
+        };
+
+        for c in [1.0 /* 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1*/] {
+            ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS * c, color));
         }
-        ctx.print::<&str>(x + 0.5, y, self.into());
+        ctx.print::<&str>(x + 0.2, y, self.into());
     }
 }
 
@@ -80,11 +85,11 @@ impl From<KeyCode> for NoteButton {
 impl From<NoteButton> for &str {
     fn from(value: NoteButton) -> Self {
         match value {
-            NoteButton::A => "a",
-            NoteButton::Down => "↓",
-            NoteButton::Right => "→",
-            NoteButton::Left => "←",
-            NoteButton::Up => "↑",
+            NoteButton::A => "A",
+            NoteButton::Down => "▼",
+            NoteButton::Right => "▶",
+            NoteButton::Left => "◀",
+            NoteButton::Up => "▲",
             NoteButton::None => " ",
         }
     }
@@ -174,23 +179,23 @@ impl App {
             // .marker(Marker::Dot)
             .paint(|ctx| {
                 const NUM_LINES: u16 = 4;
-                let line_spacing = canvas_area.height / (NUM_LINES - 1);
-                let note_spacing = canvas_area.width / (NUM_NOTES as u16 - 1);
+                let line_spacing = canvas_area.height / (NUM_LINES);
+                let note_spacing = canvas_area.width / (NUM_NOTES as u16);
                 let x1 = 0.;
                 let x2 = f64::from(canvas_area.width);
 
                 for i in 0..NUM_LINES {
-                    let y = f64::from(line_spacing * i);
+                    let y = 3. + f64::from(line_spacing * i);
                     ctx.draw(&CLine::new(x1, y, x2, y, Color::LightRed));
                 }
 
-                let note_height = f64::from(canvas_area.height / (NUM_NOTES as u16 - 3));
+                let note_height = f64::from(canvas_area.height / (NUM_NOTES as u16)) * 2.0; // FIXME:random ass constant to make it bigger
                 for (i, note) in self.notes_buffer.into_iter().enumerate() {
                     if matches!(note, NoteButton::None) {
                         continue;
                     }
-                    let x = f64::from(note_spacing * i as u16);
-                    let y = note_height * f64::from(note as u8);
+                    let x = f64::from(note_spacing * (i as u16 + 1));
+                    let y = 1.2 + note_height * f64::from(note as u8);
                     note.draw(ctx, x, y);
                 }
             })
