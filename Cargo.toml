@@ -1,0 +1,10 @@
+[package]
+name = "ocarina-tui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.54", features = ["derive"] }
+color-eyre = { version = "0.6.5", default-features = false }
+ratatui = "0.30.0"
+rodio = { version = "0.21.1", features = ["playback"] }
