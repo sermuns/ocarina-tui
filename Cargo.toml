@@ -1,5 +1,6 @@
 [package]
 name = "ocarina-tui"
+description = "play the royal family's hidden treasure from the terminal"
 version = "0.1.0"
 edition = "2024"
 
