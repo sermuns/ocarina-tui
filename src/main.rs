@@ -7,7 +7,7 @@ use ratatui::{
     symbols::Marker,
     widgets::{
         Block, BorderType, Borders, Padding, Paragraph,
-        canvas::{Canvas, Circle, Line as CLine, Shape},
+        canvas::{self, Canvas, Circle, Line as CLine, Shape},
     },
 };
 use rodio::{
@@ -53,6 +53,17 @@ enum NoteButton {
     None,
 }
 
+impl NoteButton {
+    fn draw(self, ctx: &mut canvas::Context, x: f64, y: f64) {
+        const NOTE_CIRCLE_RADIUS: f64 = 2.0;
+
+        for c in [1.0 /*, 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1*/] {
+            ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS * c, Color::Yellow));
+        }
+        ctx.print::<&str>(x + 0.5, y, self.into());
+    }
+}
+
 impl From<KeyCode> for NoteButton {
     fn from(value: KeyCode) -> Self {
         match value {
@@ -88,17 +99,18 @@ struct NoteSources {
 }
 
 static NOTES: LazyLock<NoteSources> = LazyLock::new(|| NoteSources {
-    d_a: SineWave::new(293.66).amplify_normalized(0.5),
-    f_down: SineWave::new(349.23).amplify_normalized(0.5),
-    a_right: SineWave::new(440.00).amplify_normalized(0.5),
-    b_left: SineWave::new(493.88).amplify_normalized(0.5),
-    d_up: SineWave::new(587.33).amplify_normalized(0.5),
+    d_a: SineWave::new(293.66).amplify_normalized(0.1),
+    f_down: SineWave::new(349.23).amplify_normalized(0.1),
+    a_right: SineWave::new(440.00).amplify_normalized(0.1),
+    b_left: SineWave::new(493.88).amplify_normalized(0.1),
+    d_up: SineWave::new(587.33).amplify_normalized(0.1),
 });
 
 impl App {
     fn new() -> Result<Self> {
         let stream_handle = rodio::OutputStreamBuilder::open_default_stream()?;
         let sink = rodio::Sink::connect_new(stream_handle.mixer());
+        sink.append(NOTES.d_a.clone());
 
         Ok(Self {
             quitting: false,
@@ -136,9 +148,11 @@ impl App {
             .border_style(Style::default().fg(Color::LightBlue))
             .borders(Borders::TOP);
         frame.render_widget(
-            title_block
-                .clone()
-                .title(format!(" {:?} {:?} ", self.current_note, self.note_idx)),
+            title_block.clone().title(format!(
+                " {} {:?} ",
+                <&str>::from(self.current_note),
+                self.note_idx
+            )),
             footer,
         );
         frame.render_widget(title_block.title(format!(" {} ", PKG_NAME)), header);
@@ -177,9 +191,7 @@ impl App {
                     }
                     let x = f64::from(note_spacing * i as u16);
                     let y = note_height * f64::from(note as u8);
-                    const NOTE_CIRCLE_RADIUS: f64 = 2.2;
-                    ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS, Color::Yellow));
-                    ctx.print::<&str>(x, y, (note).into());
+                    note.draw(ctx, x, y);
                 }
             })
             .x_bounds([0., f64::from(canvas_area.width)])
@@ -199,6 +211,7 @@ impl App {
         self.notes_buffer[self.note_idx] = note;
 
         if self.note_idx >= NUM_NOTES - 1 {
+            self.notes_buffer.fill(NoteButton::None);
             self.note_idx = 0;
         } else {
             self.note_idx += 1;
