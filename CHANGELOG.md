@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.2](https://github.com/sermuns/ocarina-tui/compare/v0.1.1..0.1.2) - 2026-01-07
+
+### 🐛 Bug Fixes
+
+- install ALSA on ubuntu release workflow by @sermuns in [0c88716](https://github.com/sermuns/ocarina-tui/commit/0c88716fe85a50d805ef2eb525e8c3e191aee574)
+
+### 📚 Documentation
+
+- add install instructions to README by @sermuns in [be0a567](https://github.com/sermuns/ocarina-tui/commit/be0a5679f34821feb39d6854c9f7f325d4e7e6e5)
+## [v0.1.1](https://github.com/sermuns/ocarina-tui/compare/v0.1.0..v0.1.1) - 2026-01-07
+
+### ⚙️ Miscellaneous Tasks
+
+- Release ocarina-tui version 0.1.1 by @sermuns in [4545bd2](https://github.com/sermuns/ocarina-tui/commit/4545bd2a0923a2e1a7d68e03c84d7529da2d9052)
 ## [v0.1.0] - 2026-01-07
 
 ### 🚀 Features
