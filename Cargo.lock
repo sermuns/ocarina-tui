@@ -977,7 +977,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
- "itertools 0.14.0",
  "ratatui",
  "rustysynth",
  "tinyaudio",

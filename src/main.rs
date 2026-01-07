@@ -1,21 +1,18 @@
 use clap::Parser;
 use color_eyre::Result;
-use itertools::Itertools;
 use ratatui::{
     DefaultTerminal,
     crossterm::{self, event::KeyCode},
     prelude::*,
-    symbols::Marker,
     widgets::{
-        Block, BorderType, Borders, Padding, Paragraph,
-        canvas::{self, Canvas, Circle, Line as CLine, Shape},
+        Block, BorderType, Borders, Padding,
+        canvas::{Canvas, Line as CLine, Shape},
     },
 };
-use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use std::{
-    fs::File,
     io::Cursor,
-    sync::{Arc, LazyLock},
+    sync::Arc,
     time::Duration,
 };
 use tinyaudio::prelude::*;
@@ -50,15 +47,37 @@ fn main() -> Result<()> {
 
 impl App {
     fn new() -> Result<Self> {
-        // let stream_handle = rodio::OutputStreamBuilder::open_default_stream()?;
-        // let sink = rodio::Sink::connect_new(stream_handle.mixer());
-        // sink.append(NOTES.d_a.clone());
+        let params = OutputDeviceParameters {
+            channels_count: 2,
+            sample_rate: 44100,
+            channel_sample_count: 4410,
+        };
+        let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(SF2)).unwrap());
+
+        let settings = SynthesizerSettings::new(params.sample_rate as i32);
+        let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
+        let mut midi_sequencer = MidiFileSequencer::new(synthesizer);
+
+        let mut left: Vec<f32> = vec![0_f32; params.channel_sample_count];
+        let mut right: Vec<f32> = vec![0_f32; params.channel_sample_count];
+        let _output_device = run_output_device(params, {
+            move |stereo_output| {
+                midi_sequencer.render(&mut left, &mut right);
+                for (out, (l, r)) in stereo_output
+                    .chunks_exact_mut(2)
+                    .zip(left.iter().zip(&right))
+                {
+                    out[0] = *l;
+                    out[1] = *r;
+                }
+            }
+        })
+        .unwrap();
 
         Ok(Self {
             quitting: false,
             song_played: Song::None,
-            // stream_handle,
-            // sink,
+            // midi_sequencer,
             current_note: NoteButton::None,
             message: String::new(),
             message_clear_timeout: Duration::ZERO,
@@ -67,33 +86,6 @@ impl App {
         })
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        // let params = OutputDeviceParameters {
-        //     channels_count: 2,
-        //     sample_rate: 44100,
-        //     channel_sample_count: 4410,
-        // };
-        // let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(SF2)).unwrap());
-        // let song_of_time_midi = Arc::new(MidiFile::new(&mut Cursor::new(SONG_OF_TIME)).unwrap());
-        //
-        // let mut left: Vec<f32> = vec![0_f32; params.channel_sample_count];
-        // let mut right: Vec<f32> = vec![0_f32; params.channel_sample_count];
-        //
-        // let settings = SynthesizerSettings::new(params.sample_rate as i32);
-        // let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
-        // let mut sequencer = MidiFileSequencer::new(synthesizer);
-        //
-        // sequencer.play(&song_of_time_midi, false);
-        //
-        // let mut _device = run_output_device(params, {
-        //     move |data| {
-        //         sequencer.render(&mut left[..], &mut right[..]);
-        //         for (i, value) in left.iter().interleave(right.iter()).enumerate() {
-        //             data[i] = *value;
-        //         }
-        //     }
-        // })
-        // .unwrap();
-
         while !self.quitting {
             terminal.draw(|f| self.render(f))?;
             self.handle_events()?;
