@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0] - 2026-01-07
+## [v0.1.0] - 2026-01-07
 
 ### 🚀 Features
 
@@ -24,8 +24,8 @@
 
 ### 📚 Documentation
 
-- add repo card by Samuel Åkesson in [602698d](https://github.com/sermuns/ocarina-tui/commit/602698d8ab43d59532989b525f2e07b7d0aaeef1)
-- add acknowledgements and more in README by Samuel Åkesson in [994882a](https://github.com/sermuns/ocarina-tui/commit/994882a0b218a86ff93050321f3da7c1332a3f82)
+- add repo card by @sermuns in [602698d](https://github.com/sermuns/ocarina-tui/commit/602698d8ab43d59532989b525f2e07b7d0aaeef1)
+- add acknowledgements and more in README by @sermuns in [994882a](https://github.com/sermuns/ocarina-tui/commit/994882a0b218a86ff93050321f3da7c1332a3f82)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -33,6 +33,7 @@
 - add README, screenshot and description by @sermuns in [f27e661](https://github.com/sermuns/ocarina-tui/commit/f27e661b3d5e3c3b999a75687305d45b6cbc5d2b)
 - update readme and add media, banner, logo by @sermuns in [4a1a431](https://github.com/sermuns/ocarina-tui/commit/4a1a4311f86616a603ed8d9aa8347a635283766b)
 - remove itertools, cleanup. prepare for controlling midi. by @sermuns in [b429c2c](https://github.com/sermuns/ocarina-tui/commit/b429c2cddc8e0784516b737ddcdf4d9ee5229d59)
-- add release workflow, etc by Samuel Åkesson in [5bf3286](https://github.com/sermuns/ocarina-tui/commit/5bf3286a2f06f78da0618d2862a2e3f9cd24793f)
-- fix cargo toml by Samuel Åkesson in [6becfa9](https://github.com/sermuns/ocarina-tui/commit/6becfa9ff5e9ce68f8d88463c7838d8f5e495ede)
-- add changelog by Samuel Åkesson in [d042d9f](https://github.com/sermuns/ocarina-tui/commit/d042d9ff13b1fbe7d6c70288d6e3774492cae4b7)
+- add release workflow, etc by @sermuns in [5bf3286](https://github.com/sermuns/ocarina-tui/commit/5bf3286a2f06f78da0618d2862a2e3f9cd24793f)
+- fix cargo toml by @sermuns in [6becfa9](https://github.com/sermuns/ocarina-tui/commit/6becfa9ff5e9ce68f8d88463c7838d8f5e495ede)
+- add changelog by @sermuns in [d042d9f](https://github.com/sermuns/ocarina-tui/commit/d042d9ff13b1fbe7d6c70288d6e3774492cae4b7)
+- Release ocarina-tui version 0.1.0 by @sermuns in [1293a75](https://github.com/sermuns/ocarina-tui/commit/1293a758c8ee3b115738530fa5c3bde0add3e5d9)
