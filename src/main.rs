@@ -227,7 +227,7 @@ impl App {
             return;
         }
 
-        if self.note_idx >= NUM_NOTES - 1 {
+        if self.note_idx >= NUM_NOTES {
             self.notes_buffer.fill(NoteButton::None);
             self.note_idx = 0;
         }

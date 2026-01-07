@@ -94,7 +94,7 @@ impl From<[NoteButton; NUM_NOTES]> for Song {
             [Right, A, Down, Right, A, Down, None, None] => Song::SongOfTime,
             [A, Down, Up, A, Down, Up, None, None] => Song::SongOfStorms,
             [A, Up, Left, Right, Left, Right, None, None] => Song::MinuetOfForest,
-            [Down, A, Down, A, Right, Down, Left, Down] => Song::BoleroOfFire,
+            [Down, A, Down, A, Right, Down, Right, Down] => Song::BoleroOfFire,
             [A, Down, Right, Right, Left, None, None, None] => Song::SerenadeOfWater,
             [Left, Right, Right, A, Left, Right, Down, None] => Song::NocturneOfShadow,
             [A, Down, A, Right, Down, A, None, None] => Song::RequiemOfSpirit,
