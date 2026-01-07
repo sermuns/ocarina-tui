@@ -35,3 +35,4 @@
 - remove itertools, cleanup. prepare for controlling midi. by @sermuns in [b429c2c](https://github.com/sermuns/ocarina-tui/commit/b429c2cddc8e0784516b737ddcdf4d9ee5229d59)
 - add release workflow, etc by Samuel Åkesson in [5bf3286](https://github.com/sermuns/ocarina-tui/commit/5bf3286a2f06f78da0618d2862a2e3f9cd24793f)
 - fix cargo toml by Samuel Åkesson in [6becfa9](https://github.com/sermuns/ocarina-tui/commit/6becfa9ff5e9ce68f8d88463c7838d8f5e495ede)
+- add changelog by Samuel Åkesson in [d042d9f](https://github.com/sermuns/ocarina-tui/commit/d042d9ff13b1fbe7d6c70288d6e3774492cae4b7)
