@@ -2,7 +2,10 @@ use clap::Parser;
 use color_eyre::Result;
 use ratatui::{
     DefaultTerminal,
-    crossterm::{self, event::KeyCode},
+    crossterm::{
+        self,
+        event::{self, KeyCode},
+    },
     prelude::*,
     widgets::{
         Block, BorderType, Borders, Padding,
@@ -20,21 +23,14 @@ const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 pub struct App {
     quitting: bool,
-    // stream_handle: OutputStream,
-    // sink: Sink,
     current_note: Arc<Mutex<NoteButton>>,
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
-
     playing_song: Song,
     song_sequencer: Arc<Mutex<MidiFileSequencer>>,
-
     ocarina_synth: Arc<Mutex<Synthesizer>>,
-    output_device: OutputDevice,
-
-    message: String,
-    /// when non-zero, counting down. clears `message` on completion.
-    message_clear_timeout: Duration,
+    // needs to be alive for duration of audio playback
+    _output_device: OutputDevice,
 }
 
 #[derive(Parser)]
@@ -68,7 +64,7 @@ impl App {
             Synthesizer::new(&ocarina_sound_font, &settings).unwrap(),
         ));
 
-        let output_device = run_output_device(PARAMS, {
+        let _output_device = run_output_device(PARAMS, {
             let song_sequencer = song_sequencer.clone();
             let current_note = current_note.clone();
             let ocarina_synth = ocarina_synth.clone();
@@ -96,8 +92,9 @@ impl App {
                             .zip(left_ocarina.iter().zip(right_ocarina.iter())),
                     )
                 {
-                    out[0] = *l_song + *l_ocarina;
-                    out[1] = *r_song + *r_ocarina;
+                    const AMPLIFICATION: f32 = 2.5;
+                    out[0] = AMPLIFICATION * (*l_song + *l_ocarina);
+                    out[1] = AMPLIFICATION * (*r_song + *r_ocarina);
                 }
             }
         })
@@ -115,9 +112,7 @@ impl App {
             current_note,
             song_sequencer,
             ocarina_synth,
-            output_device,
-            message: String::new(),
-            message_clear_timeout: Duration::ZERO,
+            _output_device,
             notes_buffer: [NoteButton::None; NUM_NOTES],
             note_idx: 0,
         })
@@ -147,17 +142,18 @@ impl App {
             .borders(Borders::TOP);
 
         #[cfg(debug_assertions)]
-        if let Ok(current_note) = self.current_note.try_lock() {
-            frame.render_widget(
-                title_block.clone().title(format!(
-                    " {} {:?} {:?}",
-                    <&str>::from(*current_note),
-                    self.note_idx,
-                    self.playing_song,
-                )),
-                footer,
-            );
-        }
+        frame.render_widget(
+            title_block.clone().title(format!(
+                " {} {:?} {:?}",
+                <&str>::from(*self.current_note.lock().unwrap()),
+                self.note_idx,
+                self.playing_song,
+            )),
+            footer,
+        );
+        #[cfg(not(debug_assertions))]
+        frame.render_widget(title_block.clone(), footer);
+
         frame.render_widget(title_block.title(format!(" {} ", PKG_NAME)), header);
 
         let [_, message_area, canvas_outer_area] = Layout::vertical([
@@ -179,7 +175,6 @@ impl App {
         let canvas_area = canvas_outer_area.centered_horizontally(Constraint::Max(100));
         let canvas = Canvas::default()
             .block(Block::bordered().padding(Padding::uniform(1)))
-            // .marker(Marker::Dot)
             .paint(|ctx| {
                 const NUM_LINES: u16 = 4;
                 let line_spacing = canvas_area.height / (NUM_LINES);
@@ -253,6 +248,13 @@ impl App {
 
     fn handle_events(&mut self) -> Result<()> {
         use crossterm::event::{Event, KeyModifiers};
+
+        if !event::poll(Duration::from_millis(150))? {
+            if let Ok(mut ocarina_synth) = self.ocarina_synth.try_lock() {
+                ocarina_synth.note_off_all(false);
+            }
+            return Ok(());
+        }
 
         let Event::Key(key_event) = crossterm::event::read()? else {
             return Ok(());
