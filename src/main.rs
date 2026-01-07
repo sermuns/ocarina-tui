@@ -26,9 +26,10 @@ pub struct App {
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
 
-    song_played: Song,
+    playing_song: Song,
     song_sequencer: Arc<Mutex<MidiFileSequencer>>,
 
+    ocarina_synth: Arc<Mutex<Synthesizer>>,
     output_device: OutputDevice,
 
     message: String,
@@ -53,49 +54,67 @@ impl App {
             sample_rate: 44100,
             channel_sample_count: 4410,
         };
-        let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(SF2)).unwrap());
+        let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(FULL_SOUNDFONT)).unwrap());
         let settings = SynthesizerSettings::new(PARAMS.sample_rate as i32);
 
         let song_synth = Synthesizer::new(&sound_font, &settings).unwrap();
         let song_sequencer = Arc::new(Mutex::new(MidiFileSequencer::new(song_synth)));
 
-        let mut left = [0_f32; PARAMS.channel_sample_count];
-        let mut right = [0_f32; PARAMS.channel_sample_count];
-
         let current_note = Arc::new(Mutex::new(NoteButton::None));
+
+        let ocarina_sound_font =
+            Arc::new(SoundFont::new(&mut Cursor::new(OCARINA_ONLY_SOUNDFONT)).unwrap());
+        let ocarina_synth = Arc::new(Mutex::new(
+            Synthesizer::new(&ocarina_sound_font, &settings).unwrap(),
+        ));
 
         let output_device = run_output_device(PARAMS, {
             let song_sequencer = song_sequencer.clone();
             let current_note = current_note.clone();
-            let mut ocarina_synth = Synthesizer::new(&sound_font, &settings).unwrap();
+            let ocarina_synth = ocarina_synth.clone();
+            let mut left_ocarina = [0_f32; PARAMS.channel_sample_count];
+            let mut right_ocarina = [0_f32; PARAMS.channel_sample_count];
+            let mut left_song = [0_f32; PARAMS.channel_sample_count];
+            let mut right_song = [0_f32; PARAMS.channel_sample_count];
             move |data| {
                 if let Ok(note) = current_note.try_lock()
                     && note.is_some()
+                    && let Ok(mut ocarina_synth) = ocarina_synth.try_lock()
                 {
-                    ocarina_synth.note_on(0, 60, 100);
-                    ocarina_synth.render(&mut left, &mut right);
-                } else if let Ok(mut song_sequencer) = song_sequencer.try_lock() {
-                    song_sequencer.render(&mut left, &mut right);
+                    ocarina_synth.render(&mut left_ocarina, &mut right_ocarina);
+                }
+
+                if let Ok(mut song_sequencer) = song_sequencer.try_lock() {
+                    song_sequencer.render(&mut left_song, &mut right_song);
                 };
 
-                for (out, (l, r)) in data.chunks_exact_mut(2).zip(left.iter().zip(right.iter())) {
-                    out[0] = *l;
-                    out[1] = *r;
+                for (out, ((l_song, r_song), (l_ocarina, r_ocarina))) in
+                    data.chunks_exact_mut(2).zip(
+                        left_song
+                            .iter()
+                            .zip(right_song.iter())
+                            .zip(left_ocarina.iter().zip(right_ocarina.iter())),
+                    )
+                {
+                    out[0] = *l_song + *l_ocarina;
+                    out[1] = *r_song + *r_ocarina;
                 }
             }
         })
         .unwrap();
 
-        // sleep(Duration::from_secs(10));
-
-        let midi_file = Arc::new(MidiFile::new(&mut Cursor::new(OPENING_SONG)).unwrap());
-        song_sequencer.lock().unwrap().play(&midi_file, false);
+        #[cfg(not(debug_assertions))]
+        {
+            let midi_file = Arc::new(MidiFile::new(&mut Cursor::new(OPENING_SONG)).unwrap());
+            song_sequencer.lock().unwrap().play(&midi_file, false);
+        }
 
         Ok(Self {
             quitting: false,
-            song_played: Song::None,
+            playing_song: Song::None,
             current_note,
             song_sequencer,
+            ocarina_synth,
             output_device,
             message: String::new(),
             message_clear_timeout: Duration::ZERO,
@@ -134,7 +153,7 @@ impl App {
                     " {} {:?} {:?}",
                     <&str>::from(*current_note),
                     self.note_idx,
-                    self.song_played,
+                    self.playing_song,
                 )),
                 footer,
             );
@@ -148,10 +167,12 @@ impl App {
         ])
         .areas(body);
 
-        if self.song_played.is_some() {
-            let message_text =
-                Line::from_iter(["You played ".into(), <&str>::from(&self.song_played).blue()])
-                    .centered();
+        if self.playing_song.is_some() {
+            let message_text = Line::from_iter([
+                "You played ".into(),
+                <&str>::from(&self.playing_song).blue(),
+            ])
+            .centered();
             frame.render_widget(message_text, message_area);
         }
 
@@ -186,31 +207,48 @@ impl App {
         frame.render_widget(canvas, canvas_area);
     }
 
-    fn do_note(&mut self, note: NoteButton) {
+    fn do_note(&mut self, new_note: NoteButton) {
         self.song_sequencer.lock().unwrap().stop();
 
-        *self.current_note.lock().unwrap() = note;
+        let mut old_note = self.current_note.lock().unwrap();
 
-        if matches!(note, NoteButton::None) {
+        let mut ocarina_synth = self.ocarina_synth.lock().unwrap();
+        const MIDI_CHANNEL: i32 = 0;
+        const MIDI_VELOCITY: i32 = 100;
+        if old_note.is_none() && new_note.is_some() {
+            ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
+        } else if old_note.is_some() && new_note.is_none() {
+            ocarina_synth.note_off(MIDI_CHANNEL, old_note.midi_key());
+        } else if old_note.is_some() && new_note.is_some() && *old_note != new_note {
+            ocarina_synth.note_off(MIDI_CHANNEL, old_note.midi_key());
+            ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
+        }
+
+        *old_note = new_note;
+
+        if !new_note.is_some() {
             self.notes_buffer.fill(NoteButton::None);
             self.note_idx = 0;
             return;
-        } else if self.note_idx >= NUM_NOTES - 1 {
+        }
+
+        if self.note_idx >= NUM_NOTES - 1 {
             self.notes_buffer.fill(NoteButton::None);
             self.note_idx = 0;
         }
 
-        self.notes_buffer[self.note_idx] = note;
+        self.notes_buffer[self.note_idx] = new_note;
         self.note_idx += 1;
 
-        self.song_played = self.notes_buffer.into();
+        let song: Song = self.notes_buffer.into();
 
-        let mut sequencer = self.song_sequencer.lock().unwrap();
-        if self.song_played.is_some() {
-            sequencer.play(&<Arc<MidiFile>>::from(&self.song_played), false);
+        let mut song_sequencer = self.song_sequencer.lock().unwrap();
+        if song.is_some() {
+            song_sequencer.play(&<Arc<MidiFile>>::from(&song), false);
         } else {
-            sequencer.stop();
+            song_sequencer.stop();
         }
+        self.playing_song = song;
     }
 
     fn handle_events(&mut self) -> Result<()> {

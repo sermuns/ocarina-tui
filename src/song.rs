@@ -6,7 +6,8 @@ use ratatui::{
 use rustysynth::MidiFile;
 use std::{io::Cursor, sync::Arc};
 
-pub const SF2: &[u8] = include_bytes!("../assets/zelda3sf2/LttPSF2.sf2");
+pub const FULL_SOUNDFONT: &[u8] = include_bytes!("../assets/zelda3sf2/LttPSF2.sf2");
+pub const OCARINA_ONLY_SOUNDFONT: &[u8] = include_bytes!("../assets/zelda3sf2/000_079 Ocarina.sf2");
 pub const OPENING_SONG: &[u8] = include_bytes!("../assets/zelda3sf2/oot_opening.mid");
 
 pub const NUM_NOTES: usize = 8;
@@ -54,8 +55,11 @@ impl From<&Song> for Arc<MidiFile> {
 }
 
 impl Song {
-    pub fn is_some(&self) -> bool {
-        !matches!(self, Song::None)
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Song::None)
+    }
+    pub const fn is_some(&self) -> bool {
+        !self.is_none()
     }
 }
 
@@ -100,7 +104,7 @@ impl From<[NoteButton; NUM_NOTES]> for Song {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NoteButton {
     A,
     Down,
@@ -111,8 +115,23 @@ pub enum NoteButton {
 }
 
 impl NoteButton {
-    pub fn is_some(&self) -> bool {
-        !matches!(self, Self::None)
+    pub const fn is_some(&self) -> bool {
+        !self.is_none()
+    }
+
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    pub fn midi_key(&self) -> i32 {
+        match self {
+            Self::A => 62,
+            Self::Down => 65,
+            Self::Right => 69,
+            Self::Left => 71,
+            Self::Up => 74,
+            Self::None => panic!("tried to get midi key for NoteButton::None"),
+        }
     }
 }
 
