@@ -1,8 +1,10 @@
 [package]
 name = "ocarina-tui"
-description = "play the royal family's hidden treasure from the terminal"
+description = "play the ocarina of time in the terminal"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/sermuns/ocarina-tui"
+license = "WTFPL"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
