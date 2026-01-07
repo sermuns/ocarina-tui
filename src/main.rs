@@ -10,11 +10,7 @@ use ratatui::{
     },
 };
 use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::{
-    io::Cursor,
-    sync::Arc,
-    time::Duration,
-};
+use std::{io::Cursor, sync::Arc, time::Duration};
 use tinyaudio::prelude::*;
 
 use ocarina_tui::song::*;
@@ -129,11 +125,9 @@ impl App {
         .areas(body);
 
         if self.song_played.is_some() {
-            let message_text = Line::from_iter([
-                "You played the ".into(),
-                <&str>::from(&self.song_played).blue(),
-            ])
-            .centered();
+            let message_text =
+                Line::from_iter(["You played ".into(), <&str>::from(&self.song_played).blue()])
+                    .centered();
             frame.render_widget(message_text, message_area);
         }
 
