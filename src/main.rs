@@ -224,13 +224,13 @@ impl App {
     }
 
     fn handle_events(&mut self) -> Result<()> {
-        use crossterm::event::{Event, KeyEventKind, KeyModifiers};
+        use crossterm::event::{Event, KeyModifiers};
 
         let Event::Key(key_event) = crossterm::event::read()? else {
             return Ok(());
         };
 
-        if key_event.kind != KeyEventKind::Press {
+        if !key_event.is_press() {
             return Ok(());
         }
 
