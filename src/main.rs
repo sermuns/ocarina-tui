@@ -6,11 +6,12 @@ use ratatui::{
     prelude::*,
     widgets::{
         Block, BorderType, Borders, Padding,
-        canvas::{Canvas, Line as CLine, Shape},
+        canvas::{Canvas, Line as CLine},
     },
 };
-use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::{io::Cursor, sync::Arc, time::Duration};
+use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use std::sync::{Arc, Mutex};
+use std::{io::Cursor, time::Duration};
 use tinyaudio::prelude::*;
 
 use ocarina_tui::song::*;
@@ -21,10 +22,14 @@ pub struct App {
     quitting: bool,
     // stream_handle: OutputStream,
     // sink: Sink,
-    current_note: NoteButton,
+    current_note: Arc<Mutex<NoteButton>>,
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
+
     song_played: Song,
+    song_sequencer: Arc<Mutex<MidiFileSequencer>>,
+
+    output_device: OutputDevice,
 
     message: String,
     /// when non-zero, counting down. clears `message` on completion.
@@ -43,26 +48,37 @@ fn main() -> Result<()> {
 
 impl App {
     fn new() -> Result<Self> {
-        let params = OutputDeviceParameters {
+        const PARAMS: OutputDeviceParameters = OutputDeviceParameters {
             channels_count: 2,
             sample_rate: 44100,
             channel_sample_count: 4410,
         };
         let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(SF2)).unwrap());
+        let settings = SynthesizerSettings::new(PARAMS.sample_rate as i32);
 
-        let settings = SynthesizerSettings::new(params.sample_rate as i32);
-        let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
-        let mut midi_sequencer = MidiFileSequencer::new(synthesizer);
+        let song_synth = Synthesizer::new(&sound_font, &settings).unwrap();
+        let song_sequencer = Arc::new(Mutex::new(MidiFileSequencer::new(song_synth)));
 
-        let mut left: Vec<f32> = vec![0_f32; params.channel_sample_count];
-        let mut right: Vec<f32> = vec![0_f32; params.channel_sample_count];
-        let _output_device = run_output_device(params, {
-            move |stereo_output| {
-                midi_sequencer.render(&mut left, &mut right);
-                for (out, (l, r)) in stereo_output
-                    .chunks_exact_mut(2)
-                    .zip(left.iter().zip(&right))
+        let mut left = [0_f32; PARAMS.channel_sample_count];
+        let mut right = [0_f32; PARAMS.channel_sample_count];
+
+        let current_note = Arc::new(Mutex::new(NoteButton::None));
+
+        let output_device = run_output_device(PARAMS, {
+            let song_sequencer = song_sequencer.clone();
+            let current_note = current_note.clone();
+            let mut ocarina_synth = Synthesizer::new(&sound_font, &settings).unwrap();
+            move |data| {
+                if let Ok(note) = current_note.try_lock()
+                    && note.is_some()
                 {
+                    ocarina_synth.note_on(0, 60, 100);
+                    ocarina_synth.render(&mut left, &mut right);
+                } else if let Ok(mut song_sequencer) = song_sequencer.try_lock() {
+                    song_sequencer.render(&mut left, &mut right);
+                };
+
+                for (out, (l, r)) in data.chunks_exact_mut(2).zip(left.iter().zip(right.iter())) {
                     out[0] = *l;
                     out[1] = *r;
                 }
@@ -70,11 +86,17 @@ impl App {
         })
         .unwrap();
 
+        // sleep(Duration::from_secs(10));
+
+        let midi_file = Arc::new(MidiFile::new(&mut Cursor::new(OPENING_SONG)).unwrap());
+        song_sequencer.lock().unwrap().play(&midi_file, false);
+
         Ok(Self {
             quitting: false,
             song_played: Song::None,
-            // midi_sequencer,
-            current_note: NoteButton::None,
+            current_note,
+            song_sequencer,
+            output_device,
             message: String::new(),
             message_clear_timeout: Duration::ZERO,
             notes_buffer: [NoteButton::None; NUM_NOTES],
@@ -106,15 +128,17 @@ impl App {
             .borders(Borders::TOP);
 
         #[cfg(debug_assertions)]
-        frame.render_widget(
-            title_block.clone().title(format!(
-                " {} {:?} {:?}",
-                <&str>::from(self.current_note),
-                self.note_idx,
-                self.song_played,
-            )),
-            footer,
-        );
+        if let Ok(current_note) = self.current_note.try_lock() {
+            frame.render_widget(
+                title_block.clone().title(format!(
+                    " {} {:?} {:?}",
+                    <&str>::from(*current_note),
+                    self.note_idx,
+                    self.song_played,
+                )),
+                footer,
+            );
+        }
         frame.render_widget(title_block.title(format!(" {} ", PKG_NAME)), header);
 
         let [_, message_area, canvas_outer_area] = Layout::vertical([
@@ -163,7 +187,9 @@ impl App {
     }
 
     fn do_note(&mut self, note: NoteButton) {
-        self.current_note = note;
+        self.song_sequencer.lock().unwrap().stop();
+
+        *self.current_note.lock().unwrap() = note;
 
         if matches!(note, NoteButton::None) {
             self.notes_buffer.fill(NoteButton::None);
@@ -178,6 +204,13 @@ impl App {
         self.note_idx += 1;
 
         self.song_played = self.notes_buffer.into();
+
+        let mut sequencer = self.song_sequencer.lock().unwrap();
+        if self.song_played.is_some() {
+            sequencer.play(&<Arc<MidiFile>>::from(&self.song_played), false);
+        } else {
+            sequencer.stop();
+        }
     }
 
     fn handle_events(&mut self) -> Result<()> {

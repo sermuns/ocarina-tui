@@ -3,9 +3,11 @@ use ratatui::{
     style::Color,
     widgets::canvas::{self, Circle},
 };
+use rustysynth::MidiFile;
+use std::{io::Cursor, sync::Arc};
 
 pub const SF2: &[u8] = include_bytes!("../assets/zelda3sf2/LttPSF2.sf2");
-pub const SONG_OF_TIME: &[u8] = include_bytes!("../assets/zelda3sf2/oot_ocarina_songoftime.mid");
+pub const OPENING_SONG: &[u8] = include_bytes!("../assets/zelda3sf2/oot_opening.mid");
 
 pub const NUM_NOTES: usize = 8;
 
@@ -24,6 +26,31 @@ pub enum Song {
     SunsSong,
     ZeldasLullaby,
     None,
+}
+
+impl From<&Song> for Arc<MidiFile> {
+    fn from(value: &Song) -> Self {
+        let bytes: &[u8] = match value {
+            Song::BoleroOfFire => include_bytes!("../assets/zelda3sf2/oot_bolerooffire.mid"),
+            Song::EponasSong => include_bytes!("../assets/zelda3sf2/oot_ocarina_eponassong.mid"),
+            Song::MinuetOfForest => include_bytes!("../assets/zelda3sf2/oot_minofwood.mid"),
+            Song::NocturneOfShadow => todo!(),
+            Song::PreludeOfLight => todo!(),
+            Song::RequiemOfSpirit => include_bytes!("../assets/zelda3sf2/oot_spiritual.mid"),
+            Song::SariasSong => include_bytes!("../assets/zelda3sf2/oot_ocarina_saria.mid"),
+            Song::SerenadeOfWater => todo!(),
+            Song::SongOfStorms => {
+                include_bytes!("../assets/zelda3sf2/oot_ocarina_songofstorms.mid")
+            }
+            Song::SongOfTime => include_bytes!("../assets/zelda3sf2/oot_ocarina_songoftime.mid"),
+            Song::SunsSong => include_bytes!("../assets/zelda3sf2/oot_ocarina_sunssong.mid"),
+            Song::ZeldasLullaby => {
+                include_bytes!("../assets/zelda3sf2/oot_ocarina_zeldalullaby.mid")
+            }
+            Song::None => panic!("tried to get song data for `Song::None`"),
+        };
+        Arc::new(MidiFile::new(&mut Cursor::new(bytes)).unwrap())
+    }
 }
 
 impl Song {
@@ -83,6 +110,12 @@ pub enum NoteButton {
     None,
 }
 
+impl NoteButton {
+    pub fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
 impl From<NoteButton> for &str {
     fn from(value: NoteButton) -> Self {
         match value {
@@ -111,16 +144,12 @@ impl From<KeyCode> for NoteButton {
 
 impl NoteButton {
     pub fn draw(self, ctx: &mut canvas::Context, x: f64, y: f64) {
-        const NOTE_CIRCLE_RADIUS: f64 = 1.4;
-
-        let color = match self {
-            NoteButton::A => Color::Blue,
-            _ => Color::Yellow,
+        let color = if matches!(self, NoteButton::A) {
+            Color::Blue
+        } else {
+            Color::Yellow
         };
-
-        for c in [1.0 /* 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1*/] {
-            ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS * c, color));
-        }
+        ctx.draw(&Circle::new(x, y, 1.4, color));
         ctx.print::<&str>(x + 0.2, y, self.into());
     }
 }
