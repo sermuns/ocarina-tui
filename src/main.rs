@@ -1,5 +1,6 @@
 use clap::Parser;
 use color_eyre::Result;
+use itertools::Itertools;
 use ratatui::{
     DefaultTerminal,
     crossterm::{self, event::KeyCode},
@@ -10,117 +11,54 @@ use ratatui::{
         canvas::{self, Canvas, Circle, Line as CLine, Shape},
     },
 };
-use rodio::{
-    OutputStream, Sink, Source,
-    mixer::{self},
-    source::{Amplify, SineWave},
+use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use std::{
+    fs::File,
+    io::Cursor,
+    sync::{Arc, LazyLock},
+    time::Duration,
 };
-use std::{sync::LazyLock, time::Duration};
+use tinyaudio::prelude::*;
+
+use ocarina_tui::song::*;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
-#[derive(Parser)]
-struct Args {}
-
-fn main() -> Result<()> {
-    color_eyre::install()?;
-    let mut app = App::new()?;
-    ratatui::run(|terminal| app.run(terminal))
-}
-
-const NUM_NOTES: usize = 8;
-
 pub struct App {
     quitting: bool,
-    stream_handle: OutputStream,
-    sink: Sink,
+    // stream_handle: OutputStream,
+    // sink: Sink,
     current_note: NoteButton,
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
+    song_played: Song,
 
     message: String,
     /// when non-zero, counting down. clears `message` on completion.
     message_clear_timeout: Duration,
 }
 
-#[derive(Debug, Copy, Clone)]
-enum NoteButton {
-    A,
-    Down,
-    Right,
-    Left,
-    Up,
-    None,
+#[derive(Parser)]
+struct Args {}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let _args = Args::parse();
+    let mut app = App::new()?;
+    ratatui::run(|terminal| app.run(terminal))
 }
-
-impl NoteButton {
-    fn draw(self, ctx: &mut canvas::Context, x: f64, y: f64) {
-        const NOTE_CIRCLE_RADIUS: f64 = 1.4;
-
-        let color = match self {
-            NoteButton::A => Color::Blue,
-            _ => Color::Yellow,
-        };
-
-        for c in [1.0 /* 0.9, 0.8, 0.7, 0.6, 0.5, 0.2, 0.1*/] {
-            ctx.draw(&Circle::new(x, y, NOTE_CIRCLE_RADIUS * c, color));
-        }
-        ctx.print::<&str>(x + 0.2, y, self.into());
-    }
-}
-
-impl From<KeyCode> for NoteButton {
-    fn from(value: KeyCode) -> Self {
-        match value {
-            KeyCode::Char('a') => NoteButton::A,
-            KeyCode::Down | KeyCode::Char('j') => NoteButton::Down,
-            KeyCode::Right | KeyCode::Char('l') => NoteButton::Right,
-            KeyCode::Left | KeyCode::Char('h') => NoteButton::Left,
-            KeyCode::Up | KeyCode::Char('k') => NoteButton::Up,
-            _ => NoteButton::None,
-        }
-    }
-}
-
-impl From<NoteButton> for &str {
-    fn from(value: NoteButton) -> Self {
-        match value {
-            NoteButton::A => "A",
-            NoteButton::Down => "▼",
-            NoteButton::Right => "▶",
-            NoteButton::Left => "◀",
-            NoteButton::Up => "▲",
-            NoteButton::None => " ",
-        }
-    }
-}
-
-struct NoteSources {
-    d_a: Amplify<SineWave>,
-    f_down: Amplify<SineWave>,
-    a_right: Amplify<SineWave>,
-    b_left: Amplify<SineWave>,
-    d_up: Amplify<SineWave>,
-}
-
-static NOTES: LazyLock<NoteSources> = LazyLock::new(|| NoteSources {
-    d_a: SineWave::new(293.66).amplify_normalized(0.1),
-    f_down: SineWave::new(349.23).amplify_normalized(0.1),
-    a_right: SineWave::new(440.00).amplify_normalized(0.1),
-    b_left: SineWave::new(493.88).amplify_normalized(0.1),
-    d_up: SineWave::new(587.33).amplify_normalized(0.1),
-});
 
 impl App {
     fn new() -> Result<Self> {
-        let stream_handle = rodio::OutputStreamBuilder::open_default_stream()?;
-        let sink = rodio::Sink::connect_new(stream_handle.mixer());
-        sink.append(NOTES.d_a.clone());
+        // let stream_handle = rodio::OutputStreamBuilder::open_default_stream()?;
+        // let sink = rodio::Sink::connect_new(stream_handle.mixer());
+        // sink.append(NOTES.d_a.clone());
 
         Ok(Self {
             quitting: false,
-            stream_handle,
-            sink,
+            song_played: Song::None,
+            // stream_handle,
+            // sink,
             current_note: NoteButton::None,
             message: String::new(),
             message_clear_timeout: Duration::ZERO,
@@ -129,10 +67,36 @@ impl App {
         })
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        // let params = OutputDeviceParameters {
+        //     channels_count: 2,
+        //     sample_rate: 44100,
+        //     channel_sample_count: 4410,
+        // };
+        // let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(SF2)).unwrap());
+        // let song_of_time_midi = Arc::new(MidiFile::new(&mut Cursor::new(SONG_OF_TIME)).unwrap());
+        //
+        // let mut left: Vec<f32> = vec![0_f32; params.channel_sample_count];
+        // let mut right: Vec<f32> = vec![0_f32; params.channel_sample_count];
+        //
+        // let settings = SynthesizerSettings::new(params.sample_rate as i32);
+        // let synthesizer = Synthesizer::new(&sound_font, &settings).unwrap();
+        // let mut sequencer = MidiFileSequencer::new(synthesizer);
+        //
+        // sequencer.play(&song_of_time_midi, false);
+        //
+        // let mut _device = run_output_device(params, {
+        //     move |data| {
+        //         sequencer.render(&mut left[..], &mut right[..]);
+        //         for (i, value) in left.iter().interleave(right.iter()).enumerate() {
+        //             data[i] = *value;
+        //         }
+        //     }
+        // })
+        // .unwrap();
+
         while !self.quitting {
             terminal.draw(|f| self.render(f))?;
             self.handle_events()?;
-            // self.play_notes()?;
         }
         Ok(())
     }
@@ -154,9 +118,10 @@ impl App {
             .borders(Borders::TOP);
         frame.render_widget(
             title_block.clone().title(format!(
-                " {} {:?} ",
+                " {} {:?} {:?}",
                 <&str>::from(self.current_note),
-                self.note_idx
+                self.note_idx,
+                self.song_played,
             )),
             footer,
         );
@@ -211,16 +176,15 @@ impl App {
             self.notes_buffer.fill(NoteButton::None);
             self.note_idx = 0;
             return;
+        } else if self.note_idx >= NUM_NOTES - 1 {
+            self.notes_buffer.fill(NoteButton::None);
+            self.note_idx = 0;
         }
 
         self.notes_buffer[self.note_idx] = note;
+        self.note_idx += 1;
 
-        if self.note_idx >= NUM_NOTES - 1 {
-            self.notes_buffer.fill(NoteButton::None);
-            self.note_idx = 0;
-        } else {
-            self.note_idx += 1;
-        }
+        self.song_played = self.notes_buffer.into();
     }
 
     fn handle_events(&mut self) -> Result<()> {
