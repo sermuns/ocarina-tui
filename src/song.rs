@@ -26,21 +26,48 @@ pub enum Song {
     None,
 }
 
+impl Song {
+    pub fn is_some(&self) -> bool {
+        !matches!(self, Song::None)
+    }
+}
+
+impl From<&Song> for &str {
+    fn from(value: &Song) -> Self {
+        match value {
+            Song::BoleroOfFire => "Bolero Of Fire",
+            Song::EponasSong => "Eponas Song",
+            Song::MinuetOfForest => "Minuet of Forest",
+            Song::NocturneOfShadow => "Nocturne of Shadow",
+            Song::PreludeOfLight => "Prelude of Light",
+            Song::RequiemOfSpirit => "Requiem of Spirit",
+            Song::SariasSong => "Sarias Song",
+            Song::SerenadeOfWater => "Serenade of Water",
+            Song::SongOfStorms => "Song of Storms",
+            Song::SongOfTime => "Song of Time",
+            Song::SunsSong => "Sun's Song",
+            Song::ZeldasLullaby => "Zelda's Lullaby",
+            Song::None => panic!("tried to stringify `Song::None`"),
+        }
+    }
+}
+
 impl From<[NoteButton; NUM_NOTES]> for Song {
     fn from(value: [NoteButton; NUM_NOTES]) -> Self {
-        use NoteButton as n;
+        use NoteButton::*;
         match value {
-            [
-                n::Right,
-                n::A,
-                n::Down,
-                n::Right,
-                n::A,
-                n::Down,
-                n::None,
-                n::None,
-            ] => Song::SongOfTime,
-            [n::A, n::Down, n::Up, n::A, n::Down, n::Up, n::None, n::None] => Song::SongOfStorms,
+            [Left, Up, Right, Left, Up, Right, None, None] => Song::ZeldasLullaby,
+            [Up, Left, Right, Up, Left, Right, None, None] => Song::EponasSong,
+            [Down, Right, Left, Down, Right, Left, None, None] => Song::SariasSong,
+            [Right, Down, Up, Right, Down, Up, None, None] => Song::SunsSong,
+            [Right, A, Down, Right, A, Down, None, None] => Song::SongOfTime,
+            [A, Down, Up, A, Down, Up, None, None] => Song::SongOfStorms,
+            [A, Up, Left, Right, Left, Right, None, None] => Song::MinuetOfForest,
+            [Down, A, Down, A, Right, Down, Left, Down] => Song::BoleroOfFire,
+            [A, Down, Right, Right, Left, None, None, None] => Song::SerenadeOfWater,
+            [Left, Right, Right, A, Left, Right, Down, None] => Song::NocturneOfShadow,
+            [A, Down, A, Right, Down, A, None, None] => Song::RequiemOfSpirit,
+            [Up, Right, Up, Right, Left, Up, None, None] => Song::PreludeOfLight,
             _ => Song::None,
         }
     }

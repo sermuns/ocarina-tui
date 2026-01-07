@@ -116,6 +116,8 @@ impl App {
             .border_type(BorderType::Thick)
             .border_style(Style::default().fg(Color::LightBlue))
             .borders(Borders::TOP);
+
+        #[cfg(debug_assertions)]
         frame.render_widget(
             title_block.clone().title(format!(
                 " {} {:?} {:?}",
@@ -134,9 +136,14 @@ impl App {
         ])
         .areas(body);
 
-        let message_text =
-            Line::from(vec!["You played the ".into(), "Song of Time".blue()]).centered();
-        frame.render_widget(message_text, message_area);
+        if self.song_played.is_some() {
+            let message_text = Line::from_iter([
+                "You played the ".into(),
+                <&str>::from(&self.song_played).blue(),
+            ])
+            .centered();
+            frame.render_widget(message_text, message_area);
+        }
 
         let canvas_area = canvas_outer_area.centered_horizontally(Constraint::Max(100));
         let canvas = Canvas::default()
