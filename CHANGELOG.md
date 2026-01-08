@@ -1,6 +1,11 @@
 # Changelog
 
-## [0.1.3](https://github.com/sermuns/ocarina-tui/compare/v0.1.2..0.1.3) - 2026-01-08
+## [0.1.4](https://github.com/sermuns/ocarina-tui/compare/v0.1.3..0.1.4) - 2026-01-08
+
+### 🐛 Bug Fixes
+
+- build releases with pulled git-lfs objects by @sermuns in [fd5b860](https://github.com/sermuns/ocarina-tui/commit/fd5b8603b5fdade8f37bab40e099e82194501042)
+## [v0.1.3](https://github.com/sermuns/ocarina-tui/compare/v0.1.2..v0.1.3) - 2026-01-08
 
 ### 🐛 Bug Fixes
 
@@ -10,6 +15,10 @@
 ### 🚜 Refactor
 
 - less locking, minor cleanup by @sermuns in [e303582](https://github.com/sermuns/ocarina-tui/commit/e3035826148a2d49f7f67e6e61b3bca7ddf6bf51)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release ocarina-tui version 0.1.3 by @sermuns in [ae58b96](https://github.com/sermuns/ocarina-tui/commit/ae58b966026e35178af1cbb7f59199f561c728d6)
 ## [v0.1.2](https://github.com/sermuns/ocarina-tui/compare/v0.1.1..v0.1.2) - 2026-01-07
 
 ### 🐛 Bug Fixes
