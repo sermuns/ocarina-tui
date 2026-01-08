@@ -19,16 +19,15 @@ use tinyaudio::prelude::*;
 
 use ocarina_tui::song::*;
 
-const PKG_NAME: &str = env!("CARGO_PKG_NAME");
-
 pub struct App {
     quitting: bool,
-    current_note: Arc<Mutex<NoteButton>>,
+    current_note: NoteButton,
     notes_buffer: [NoteButton; NUM_NOTES],
     note_idx: usize,
     playing_song: Song,
     song_sequencer: Arc<Mutex<MidiFileSequencer>>,
     ocarina_synth: Arc<Mutex<Synthesizer>>,
+
     // needs to be alive for duration of audio playback
     _output_device: OutputDevice,
 }
@@ -56,8 +55,6 @@ impl App {
         let song_synth = Synthesizer::new(&sound_font, &settings).unwrap();
         let song_sequencer = Arc::new(Mutex::new(MidiFileSequencer::new(song_synth)));
 
-        let current_note = Arc::new(Mutex::new(NoteButton::None));
-
         let ocarina_sound_font =
             Arc::new(SoundFont::new(&mut Cursor::new(OCARINA_ONLY_SOUNDFONT)).unwrap());
         let ocarina_synth = Arc::new(Mutex::new(
@@ -66,20 +63,15 @@ impl App {
 
         let _output_device = run_output_device(PARAMS, {
             let song_sequencer = song_sequencer.clone();
-            let current_note = current_note.clone();
             let ocarina_synth = ocarina_synth.clone();
             let mut left_ocarina = [0_f32; PARAMS.channel_sample_count];
             let mut right_ocarina = [0_f32; PARAMS.channel_sample_count];
             let mut left_song = [0_f32; PARAMS.channel_sample_count];
             let mut right_song = [0_f32; PARAMS.channel_sample_count];
             move |data| {
-                if let Ok(note) = current_note.try_lock()
-                    && note.is_some()
-                    && let Ok(mut ocarina_synth) = ocarina_synth.try_lock()
-                {
+                if let Ok(mut ocarina_synth) = ocarina_synth.try_lock() {
                     ocarina_synth.render(&mut left_ocarina, &mut right_ocarina);
                 }
-
                 if let Ok(mut song_sequencer) = song_sequencer.try_lock() {
                     song_sequencer.render(&mut left_song, &mut right_song);
                 };
@@ -92,9 +84,9 @@ impl App {
                             .zip(left_ocarina.iter().zip(right_ocarina.iter())),
                     )
                 {
-                    const AMPLIFICATION: f32 = 2.5;
-                    out[0] = AMPLIFICATION * (*l_song + *l_ocarina);
-                    out[1] = AMPLIFICATION * (*r_song + *r_ocarina);
+                    const AMPLIFICATION: f32 = 3.0;
+                    out[0] = (AMPLIFICATION * (*l_song + *l_ocarina)).tanh();
+                    out[1] = (AMPLIFICATION * (*r_song + *r_ocarina)).tanh();
                 }
             }
         })
@@ -109,7 +101,7 @@ impl App {
         Ok(Self {
             quitting: false,
             playing_song: Song::None,
-            current_note,
+            current_note: NoteButton::None,
             song_sequencer,
             ocarina_synth,
             _output_device,
@@ -145,7 +137,7 @@ impl App {
         frame.render_widget(
             title_block.clone().title(format!(
                 " {} {:?} {:?}",
-                <&str>::from(*self.current_note.lock().unwrap()),
+                <&str>::from(self.current_note),
                 self.note_idx,
                 self.playing_song,
             )),
@@ -154,7 +146,10 @@ impl App {
         #[cfg(not(debug_assertions))]
         frame.render_widget(title_block.clone(), footer);
 
-        frame.render_widget(title_block.title(format!(" {} ", PKG_NAME)), header);
+        frame.render_widget(
+            title_block.title(format!(" {} ", env!("CARGO_PKG_NAME"))),
+            header,
+        );
 
         let [_, message_area, canvas_outer_area] = Layout::vertical([
             Constraint::Fill(1),
@@ -205,21 +200,20 @@ impl App {
     fn do_note(&mut self, new_note: NoteButton) {
         self.song_sequencer.lock().unwrap().stop();
 
-        let mut old_note = self.current_note.lock().unwrap();
-
         let mut ocarina_synth = self.ocarina_synth.lock().unwrap();
         const MIDI_CHANNEL: i32 = 0;
         const MIDI_VELOCITY: i32 = 100;
-        if old_note.is_none() && new_note.is_some() {
+        if self.current_note.is_none() && new_note.is_some() {
             ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
-        } else if old_note.is_some() && new_note.is_none() {
-            ocarina_synth.note_off(MIDI_CHANNEL, old_note.midi_key());
-        } else if old_note.is_some() && new_note.is_some() && *old_note != new_note {
-            ocarina_synth.note_off(MIDI_CHANNEL, old_note.midi_key());
+        } else if self.current_note.is_some() && new_note.is_none() {
+            ocarina_synth.note_off(MIDI_CHANNEL, self.current_note.midi_key());
+        } else if self.current_note.is_some() && new_note.is_some() && self.current_note != new_note
+        {
+            ocarina_synth.note_off(MIDI_CHANNEL, self.current_note.midi_key());
             ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
         }
 
-        *old_note = new_note;
+        self.current_note = new_note;
 
         if !new_note.is_some() {
             self.notes_buffer.fill(NoteButton::None);
@@ -249,7 +243,8 @@ impl App {
     fn handle_events(&mut self) -> Result<()> {
         use crossterm::event::{Event, KeyModifiers};
 
-        if !event::poll(Duration::from_millis(150))? {
+        if !event::poll(Duration::from_millis(300))? {
+            // TODO: ability to hold a note?
             if let Ok(mut ocarina_synth) = self.ocarina_synth.try_lock() {
                 ocarina_synth.note_off_all(false);
             }

@@ -168,7 +168,7 @@ impl NoteButton {
         } else {
             Color::Yellow
         };
-        ctx.draw(&Circle::new(x, y, 1.4, color));
+        ctx.draw(&Circle::new(x, y, 1.6, color));
         ctx.print::<&str>(x + 0.2, y, self.into());
     }
 }
