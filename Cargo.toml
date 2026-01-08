@@ -1,7 +1,7 @@
 [package]
 name = "ocarina-tui"
 description = "play the ocarina of time in the terminal"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 repository = "https://github.com/sermuns/ocarina-tui"
 license = "WTFPL"

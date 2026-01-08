@@ -1,6 +1,16 @@
 # Changelog
 
-## [0.1.2](https://github.com/sermuns/ocarina-tui/compare/v0.1.1..0.1.2) - 2026-01-07
+## [0.1.3](https://github.com/sermuns/ocarina-tui/compare/v0.1.2..0.1.3) - 2026-01-08
+
+### 🐛 Bug Fixes
+
+- incorrect note length and wrong bolero of fire by @sermuns in [2decd96](https://github.com/sermuns/ocarina-tui/commit/2decd9642f19d3a2374ca3717a4611ba840a1e8b)
+- stop building for linux-musl x86 and aarch64 by @sermuns in [8f0b3fe](https://github.com/sermuns/ocarina-tui/commit/8f0b3fe809142b1be28fe492c8a469930da70e7c)
+
+### 🚜 Refactor
+
+- less locking, minor cleanup by @sermuns in [e303582](https://github.com/sermuns/ocarina-tui/commit/e3035826148a2d49f7f67e6e61b3bca7ddf6bf51)
+## [v0.1.2](https://github.com/sermuns/ocarina-tui/compare/v0.1.1..v0.1.2) - 2026-01-07
 
 ### 🐛 Bug Fixes
 
@@ -9,6 +19,10 @@
 ### 📚 Documentation
 
 - add install instructions to README by @sermuns in [be0a567](https://github.com/sermuns/ocarina-tui/commit/be0a5679f34821feb39d6854c9f7f325d4e7e6e5)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release ocarina-tui version 0.1.2 by @sermuns in [5d1926a](https://github.com/sermuns/ocarina-tui/commit/5d1926aa1d6751f94e6199e6ab38d01b3ce94228)
 ## [v0.1.1](https://github.com/sermuns/ocarina-tui/compare/v0.1.0..v0.1.1) - 2026-01-07
 
 ### ⚙️ Miscellaneous Tasks
