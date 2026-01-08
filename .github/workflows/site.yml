@@ -20,13 +20,18 @@ jobs:
       id-token: write # to use actions/deploy-pages
       pages: write # to push to a github pages site
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
 
       - uses: taiki-e/install-action@v2
         with:
           tool: meread
 
       - run: meread --export-dir public
+
+      - run: cp -r media public/
 
       - uses: actions/upload-pages-artifact@v3
         with:
