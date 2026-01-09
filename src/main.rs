@@ -12,7 +12,7 @@ use ratatui::{
         canvas::{Canvas, Line as CLine},
     },
 };
-use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use std::sync::{Arc, Mutex};
 use std::{io::Cursor, time::Duration};
 use tinyaudio::prelude::*;
@@ -21,10 +21,10 @@ use ocarina_tui::song::*;
 
 pub struct App {
     quitting: bool,
-    current_note: NoteButton,
-    notes_buffer: [NoteButton; NUM_NOTES],
+    current_note: Option<Note>,
+    notes_buffer: [Option<Note>; NUM_NOTES],
     note_idx: usize,
-    playing_song: Song,
+    playing_song: Option<Song>,
     song_sequencer: Arc<Mutex<MidiFileSequencer>>,
     ocarina_synth: Arc<Mutex<Synthesizer>>,
 
@@ -37,7 +37,7 @@ struct Args {}
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let _args = Args::parse();
+    let _args = Args::parse(); // TODO: add args, description etc
     let mut app = App::new()?;
     ratatui::run(|terminal| app.run(terminal))
 }
@@ -100,12 +100,12 @@ impl App {
 
         Ok(Self {
             quitting: false,
-            playing_song: Song::None,
-            current_note: NoteButton::None,
+            playing_song: None,
+            current_note: None,
             song_sequencer,
             ocarina_synth,
             _output_device,
-            notes_buffer: [NoteButton::None; NUM_NOTES],
+            notes_buffer: [None; NUM_NOTES],
             note_idx: 0,
         })
     }
@@ -136,10 +136,8 @@ impl App {
         #[cfg(debug_assertions)]
         frame.render_widget(
             title_block.clone().title(format!(
-                " {} {:?} {:?}",
-                <&str>::from(self.current_note),
-                self.note_idx,
-                self.playing_song,
+                " {:?} {:?} {:?}",
+                self.current_note, self.note_idx, self.playing_song,
             )),
             footer,
         );
@@ -158,12 +156,9 @@ impl App {
         ])
         .areas(body);
 
-        if self.playing_song.is_some() {
-            let message_text = Line::from_iter([
-                "You played ".into(),
-                <&str>::from(&self.playing_song).blue(),
-            ])
-            .centered();
+        if let Some(song) = &self.playing_song {
+            let message_text =
+                Line::from_iter(["You played ".into(), song.name().blue()]).centered();
             frame.render_widget(message_text, message_area);
         }
 
@@ -184,9 +179,9 @@ impl App {
 
                 let note_height = f64::from(canvas_area.height / (NUM_NOTES as u16)) * 2.0; // FIXME:random ass constant to make it bigger
                 for (i, note) in self.notes_buffer.into_iter().enumerate() {
-                    if matches!(note, NoteButton::None) {
+                    let Some(note) = note else {
                         continue;
-                    }
+                    };
                     let x = f64::from(note_spacing * (i as u16 + 1));
                     let y = 1.2 + note_height * f64::from(note as u8);
                     note.draw(ctx, x, y);
@@ -197,47 +192,47 @@ impl App {
         frame.render_widget(canvas, canvas_area);
     }
 
-    fn do_note(&mut self, new_note: NoteButton) {
+    fn do_note(&mut self, new_note: Option<Note>) {
         self.song_sequencer.lock().unwrap().stop();
-
         let mut ocarina_synth = self.ocarina_synth.lock().unwrap();
+
         const MIDI_CHANNEL: i32 = 0;
         const MIDI_VELOCITY: i32 = 100;
-        if self.current_note.is_none() && new_note.is_some() {
-            ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
-        } else if self.current_note.is_some() && new_note.is_none() {
-            ocarina_synth.note_off(MIDI_CHANNEL, self.current_note.midi_key());
-        } else if self.current_note.is_some() && new_note.is_some() && self.current_note != new_note
-        {
-            ocarina_synth.note_off(MIDI_CHANNEL, self.current_note.midi_key());
-            ocarina_synth.note_on(MIDI_CHANNEL, new_note.midi_key(), MIDI_VELOCITY);
+        if self.current_note != new_note {
+            if let Some(current) = self.current_note {
+                ocarina_synth.note_off(MIDI_CHANNEL, current.midi_key());
+            }
+            if let Some(new) = new_note {
+                ocarina_synth.note_on(MIDI_CHANNEL, new.midi_key(), MIDI_VELOCITY);
+            }
         }
 
         self.current_note = new_note;
 
-        if !new_note.is_some() {
-            self.notes_buffer.fill(NoteButton::None);
+        if new_note.is_none() {
+            self.notes_buffer.fill(None);
             self.note_idx = 0;
             return;
         }
 
         if self.note_idx >= NUM_NOTES {
-            self.notes_buffer.fill(NoteButton::None);
+            self.notes_buffer.fill(None);
             self.note_idx = 0;
         }
 
         self.notes_buffer[self.note_idx] = new_note;
         self.note_idx += 1;
 
-        let song: Song = self.notes_buffer.into();
-
         let mut song_sequencer = self.song_sequencer.lock().unwrap();
-        if song.is_some() {
-            song_sequencer.play(&<Arc<MidiFile>>::from(&song), false);
-        } else {
+
+        self.playing_song = song_from_notes(&self.notes_buffer);
+
+        let Some(song) = &self.playing_song else {
             song_sequencer.stop();
-        }
-        self.playing_song = song;
+            return;
+        };
+
+        song_sequencer.play(&Arc::new(song.midi_file()), false);
     }
 
     fn handle_events(&mut self) -> Result<()> {
@@ -266,7 +261,15 @@ impl App {
             self.quit();
         }
 
-        self.do_note(key_event.code.into());
+        let new_note = match key_event.code {
+            KeyCode::Char('a') => Some(Note::A),
+            KeyCode::Down | KeyCode::Char('j') => Some(Note::Down),
+            KeyCode::Right | KeyCode::Char('l') => Some(Note::Right),
+            KeyCode::Left | KeyCode::Char('h') => Some(Note::Left),
+            KeyCode::Up | KeyCode::Char('k') => Some(Note::Up),
+            _ => None,
+        };
+        self.do_note(new_note);
 
         Ok(())
     }
