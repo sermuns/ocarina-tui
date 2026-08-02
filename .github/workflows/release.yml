@@ -52,7 +52,7 @@ jobs:
 
       - name: Setup | cross
         if: endsWith(matrix.target, '-unknown-linux-musl')
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.5
         with:
           tool: cross
 
