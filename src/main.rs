@@ -77,7 +77,7 @@ impl App {
                 };
 
                 for (out, ((l_song, r_song), (l_ocarina, r_ocarina))) in
-                    data.chunks_exact_mut(2).zip(
+                    data.as_chunks_mut::<2>().0.iter_mut().zip(
                         left_song
                             .iter()
                             .zip(right_song.iter())
