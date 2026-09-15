@@ -18,12 +18,14 @@ use ratatui::{
         canvas::{Canvas, Line as CLine},
     },
 };
-use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
+use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
 use tinyaudio::prelude::*;
 
 mod song;
 
-use crate::song::{FULL_SOUNDFONT, NUM_NOTES, Note, OCARINA_ONLY_SOUNDFONT, Song, song_from_notes};
+use crate::song::{
+    FULL_SOUNDFONT, NUM_NOTES, Note, OCARINA_ONLY_SOUNDFONT, OPENING_SONG, Song, song_from_notes,
+};
 
 pub struct App {
     quitting: bool,
@@ -40,24 +42,30 @@ pub struct App {
 
 #[derive(Parser)]
 #[command(version, about)]
-struct Args {}
+struct Args {
+    /// Unless given, will play Ocarina of Time opening theme when starting.
+    #[arg(short, long)]
+    no_opening: bool,
+}
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let _args = Args::parse(); // TODO: add args, description etc
-    let mut app = App::new()?;
+    let Args { no_opening } = Args::parse();
+
+    let mut app = App::new(no_opening)?;
     ratatui::run(|terminal| app.run(terminal))
 }
 
 impl App {
-    fn new() -> Result<Self> {
+    fn new(no_opening: bool) -> Result<Self> {
+        const SAMPLE_RATE: usize = 44_100;
         const PARAMS: OutputDeviceParameters = OutputDeviceParameters {
             channels_count: 2,
-            sample_rate: 44100,
-            channel_sample_count: 4410,
+            sample_rate: SAMPLE_RATE,
+            channel_sample_count: SAMPLE_RATE / 90,
         };
         let sound_font = Arc::new(SoundFont::new(&mut Cursor::new(FULL_SOUNDFONT)).unwrap());
-        let settings = SynthesizerSettings::new(PARAMS.sample_rate as i32);
+        let settings = SynthesizerSettings::new(SAMPLE_RATE as i32);
 
         let song_synth = Synthesizer::new(&sound_font, &settings).unwrap();
         let song_sequencer = Arc::new(Mutex::new(MidiFileSequencer::new(song_synth)));
@@ -99,8 +107,7 @@ impl App {
         })
         .unwrap();
 
-        #[cfg(not(debug_assertions))]
-        {
+        if !no_opening {
             let midi_file = Arc::new(MidiFile::new(&mut Cursor::new(OPENING_SONG)).unwrap());
             song_sequencer.lock().unwrap().play(&midi_file, false);
         }
@@ -140,15 +147,6 @@ impl App {
             .border_style(Style::default().fg(Color::LightBlue))
             .borders(Borders::TOP);
 
-        #[cfg(debug_assertions)]
-        frame.render_widget(
-            title_block.clone().title(format!(
-                " {:?} {:?} {:?}",
-                self.current_note, self.note_idx, self.playing_song,
-            )),
-            footer,
-        );
-        #[cfg(not(debug_assertions))]
         frame.render_widget(title_block.clone(), footer);
 
         frame.render_widget(

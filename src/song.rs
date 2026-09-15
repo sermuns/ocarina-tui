@@ -7,10 +7,12 @@ use std::io::Cursor;
 
 pub const FULL_SOUNDFONT: &[u8] = include_bytes!("../assets/zelda3sf2/LttPSF2.sf2");
 pub const OCARINA_ONLY_SOUNDFONT: &[u8] = include_bytes!("../assets/zelda3sf2/000_079 Ocarina.sf2");
+
 pub const OPENING_SONG: &[u8] = include_bytes!("../assets/zelda3sf2/oot_opening.mid");
 
 pub const NUM_NOTES: usize = 8;
 
+#[expect(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum Song {
     BoleroOfFire,
@@ -69,7 +71,8 @@ impl Song {
 }
 
 pub fn song_from_notes(notes: &[Option<Note>; NUM_NOTES]) -> Option<Song> {
-    use Note::*;
+    use Note::*; // forgive me for i have sinned
+
     match notes {
         [
             Some(Left),
