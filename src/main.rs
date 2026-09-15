@@ -1,3 +1,9 @@
+use std::{
+    io::Cursor,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use clap::Parser;
 use color_eyre::Result;
 use ratatui::{
@@ -13,11 +19,11 @@ use ratatui::{
     },
 };
 use rustysynth::{MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::sync::{Arc, Mutex};
-use std::{io::Cursor, time::Duration};
 use tinyaudio::prelude::*;
 
-use ocarina_tui::song::*;
+mod song;
+
+use crate::song::{FULL_SOUNDFONT, NUM_NOTES, Note, OCARINA_ONLY_SOUNDFONT, Song, song_from_notes};
 
 pub struct App {
     quitting: bool,
@@ -33,6 +39,7 @@ pub struct App {
 }
 
 #[derive(Parser)]
+#[command(version, about)]
 struct Args {}
 
 fn main() -> Result<()> {
