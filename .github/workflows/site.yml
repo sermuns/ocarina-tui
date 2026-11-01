@@ -25,7 +25,7 @@ jobs:
           lfs: true
 
 
-      - uses: taiki-e/install-action@v2.85.5
+      - uses: taiki-e/install-action@v2.88.0
         with:
           tool: meread
 
